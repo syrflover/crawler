@@ -263,6 +263,32 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "use many network resource"]
+    async fn download_thumbnail() {
+        simple_logger::init_with_level(log::Level::Debug).unwrap();
+
+        let ids = nozomi::parse(1, 25).await.unwrap();
+
+        let id = ids[2];
+
+        let gallery_dir = format!("./sample/images/{id}");
+        std::fs::create_dir_all(&gallery_dir).unwrap();
+
+        let gallery = gallery::parse(id).await.unwrap();
+
+        let file = &gallery.files[0];
+
+        let thumbnail = Image::new(id, file, ImageKind::Thumbnail).await;
+
+        let buf = thumbnail.download().await.unwrap();
+
+        let name = format!("{}/thumbnail.{}", gallery_dir, thumbnail.ext());
+        let mut f = std::fs::File::create(name).unwrap();
+
+        f.write_all(&buf).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "use many network resource"]
     async fn download_images() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
 
@@ -275,6 +301,7 @@ mod tests {
 
         let gallery = gallery::parse(id).await.unwrap();
 
+        let gallery_dir = &gallery_dir;
         stream::iter(gallery.files.iter())
             .map(|file| Image::new(id, file, ImageKind::Original))
             .enumerate()
@@ -283,7 +310,7 @@ mod tests {
 
                 let buf = image.download().await.unwrap();
 
-                let name = format!("./sample/images/{p}.{}", image.ext());
+                let name = format!("{}/{p}.{}", gallery_dir, image.ext());
                 let mut f = std::fs::File::create(name).unwrap();
 
                 f.write_all(&buf).unwrap();
