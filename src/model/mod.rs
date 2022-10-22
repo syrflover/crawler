@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct File {
     pub has_webp: bool,
     pub has_avif: bool,
@@ -12,7 +12,7 @@ pub struct File {
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum TagKind {
     #[serde(rename = "artist")]
     Artist,
@@ -48,13 +48,13 @@ impl Display for TagKind {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Tag {
     pub kind: TagKind,
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Gallery {
     pub id: u32,
     pub title: String,
