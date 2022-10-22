@@ -185,6 +185,19 @@ mod sealed {
             let characters = g.characters.into_iter().map_into();
             let tags = g.tags.into_iter().map_into();
 
+            /* let date = {
+                log::debug!("{:?}", g.date.chars().rev().nth(2));
+                // "2022-07-25 06:30:00-05"
+                if let Some('-' | '+') = g.date.chars().rev().nth(2) {
+                    g.date + ":00"
+                } else {
+                    g.date
+                }
+            };
+
+            log::debug!("{date}");
+            */
+
             Self {
                 id,
                 title: g.title,
@@ -227,17 +240,22 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
 mod tests {
     use crate::nozomi;
 
-    // https://hitomi.la/gamecg/survivor-sarah-2-cruel-world-2278520.html
     #[tokio::test]
     async fn parse_gallery() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
 
         let ids = nozomi::parse(1, 25).await.unwrap();
 
-        let id = ids[2];
+        let mut galleries = Vec::new();
 
-        log::debug!("{id}");
+        // for id in ids {
+        let gallery = super::parse(2288317).await.unwrap();
 
-        super::parse(id).await.unwrap();
+        galleries.push(gallery);
+        // }
+
+        let g = &galleries[0];
+
+        log::debug!("{g:#?}");
     }
 }
