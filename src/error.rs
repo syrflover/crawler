@@ -13,4 +13,7 @@ pub enum Error {
 
     #[error("Io: {0}")]
     Io(#[from] io::Error),
+
+    #[error("Image: {0}")]
+    Image(#[from] crate::image::Error),
 }

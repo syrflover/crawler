@@ -7,15 +7,24 @@ use crate::{
     network::{self, http::request},
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("can't parse url")]
+    ParseUrl,
+}
+
 pub struct Image {
     url: String,
     kind: ImageKind,
 }
 
 impl Image {
-    pub async fn new(id: u32, file: &File, kind: ImageKind) -> Self {
+    pub async fn new(id: u32, file: &File, kind: ImageKind) -> crate::Result<Self> {
         let url = {
-            let (original_url, thumbnail_url) = parse_url(id, file).await;
+            let (original_url, thumbnail_url) = match parse_url(id, file).await {
+                Some((original_url, thumbnail_url)) => (original_url, thumbnail_url),
+                None => return Err(Error::ParseUrl.into()),
+            };
 
             match kind {
                 ImageKind::Original => original_url,
@@ -23,7 +32,7 @@ impl Image {
             }
         };
 
-        Self { url, kind }
+        Ok(Self { url, kind })
     }
 
     pub fn ext(&self) -> &str {
@@ -56,7 +65,7 @@ pub enum ImageKind {
 
 /// # Returns
 /// (image_url, thumbnail_url)
-async fn parse_url(id: u32, file: &File) -> (String, String) {
+async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
     let id_string = id.to_string();
     let mut id_chars = id_string.chars();
 
@@ -190,7 +199,8 @@ async fn parse_url(id: u32, file: &File) -> (String, String) {
             subdomain, gg_json.b, x, file.hash,
         )
     } else {
-        panic!("hasn't webp / avif image of {}", id);
+        // panic!("hasn't webp / avif image of {}", id);
+        return None;
     };
 
     // // log::debug!("image url = {}", image_url);
@@ -216,7 +226,8 @@ async fn parse_url(id: u32, file: &File) -> (String, String) {
             calculated_subdomain, postfix[2], postfix[0], postfix[1], file.hash
         )
     } else {
-        panic!("hasn't webp / avif thumbnail of {}", id);
+        // panic!("hasn't webp / avif thumbnail of {}", id);
+        return None;
     };
 
     // log::debug!("iamge = {:?}", file);
@@ -229,7 +240,7 @@ async fn parse_url(id: u32, file: &File) -> (String, String) {
     // log::debug!("image_url = {}", image_url);
     // log::debug!("thumbnail_url = {}", thumbnail_url);
 
-    (image_url, thumbnail_url)
+    Some((image_url, thumbnail_url))
 }
 
 #[cfg(test)]
@@ -277,7 +288,7 @@ mod tests {
 
         let file = &gallery.files[0];
 
-        let thumbnail = Image::new(id, file, ImageKind::Thumbnail).await;
+        let thumbnail = Image::new(id, file, ImageKind::Thumbnail).await.unwrap();
 
         let buf = thumbnail.download().await.unwrap();
 
@@ -306,7 +317,7 @@ mod tests {
             .map(|file| Image::new(id, file, ImageKind::Original))
             .enumerate()
             .for_each(|(p, fut)| async move {
-                let image = fut.await;
+                let image = fut.await.unwrap();
 
                 let buf = image.download().await.unwrap();
 

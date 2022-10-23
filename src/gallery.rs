@@ -244,7 +244,7 @@ mod tests {
     async fn parse_gallery() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
 
-        let ids = nozomi::parse(1, 25).await.unwrap();
+        let _ids = nozomi::parse(1, 25).await.unwrap();
 
         let mut galleries = Vec::new();
 
