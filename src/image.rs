@@ -267,7 +267,7 @@ mod tests {
 
         let gallery = gallery::parse(id).await.unwrap();
 
-        let file = &gallery.files[0];
+        let (_, file) = &gallery.files[0];
 
         super::parse_url(id, file).await;
     }
@@ -286,7 +286,7 @@ mod tests {
 
         let gallery = gallery::parse(id).await.unwrap();
 
-        let file = &gallery.files[0];
+        let (_, file) = &gallery.files[0];
 
         let thumbnail = Image::new(id, file, ImageKind::Thumbnail).await.unwrap();
 
@@ -314,7 +314,7 @@ mod tests {
 
         let gallery_dir = &gallery_dir;
         stream::iter(gallery.files.iter())
-            .map(|file| Image::new(id, file, ImageKind::Original))
+            .map(|(_, file)| Image::new(id, file, ImageKind::Original))
             .enumerate()
             .for_each(|(p, fut)| async move {
                 let image = fut.await.unwrap();

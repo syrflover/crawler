@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct File {
     pub has_webp: bool,
     pub has_avif: bool,
@@ -12,7 +12,7 @@ pub struct File {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum TagKind {
     #[serde(rename = "artist")]
     Artist,
@@ -48,18 +48,19 @@ impl Display for TagKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub kind: TagKind,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Gallery {
     pub id: u32,
     pub title: String,
     pub kind: String,
-    pub files: Vec<File>,
+    /// (page, File)
+    pub files: Vec<(usize, File)>,
     pub language: Option<String>,
     pub tags: Vec<Tag>,
     pub date: String,

@@ -202,7 +202,12 @@ mod sealed {
                 id,
                 title: g.title,
                 kind: g.kind,
-                files: g.files.into_iter().map_into().collect(),
+                files: g
+                    .files
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, file)| (i + 1, file.into()))
+                    .collect(),
                 language: g.language,
                 tags: artists
                     .chain(groups)
