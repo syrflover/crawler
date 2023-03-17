@@ -35,8 +35,9 @@ impl Image {
         Ok(Self { url, kind })
     }
 
-    pub fn ext(&self) -> &str {
-        self.url.split('.').last().expect("not include ext")
+    pub fn ext(&self) -> Option<&str> {
+        self.url.split('.').last()
+        // .expect("not include ext")
     }
 
     pub fn kind(&self) -> ImageKind {
@@ -273,7 +274,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "use many network resource"]
+    #[ignore = "using many network resource"]
     async fn download_thumbnail() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
 
@@ -292,14 +293,14 @@ mod tests {
 
         let buf = thumbnail.download().await.unwrap();
 
-        let name = format!("{}/thumbnail.{}", gallery_dir, thumbnail.ext());
+        let name = format!("{}/thumbnail.{}", gallery_dir, thumbnail.ext().unwrap());
         let mut f = std::fs::File::create(name).unwrap();
 
         f.write_all(&buf).unwrap();
     }
 
     #[tokio::test]
-    #[ignore = "use many network resource"]
+    #[ignore = "using many network resource"]
     async fn download_images() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
 
@@ -321,7 +322,7 @@ mod tests {
 
                 let buf = image.download().await.unwrap();
 
-                let name = format!("{}/{p}.{}", gallery_dir, image.ext());
+                let name = format!("{}/{p}.{}", gallery_dir, image.ext().unwrap());
                 let mut f = std::fs::File::create(name).unwrap();
 
                 f.write_all(&buf).unwrap();
