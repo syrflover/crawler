@@ -1,16 +1,28 @@
+use std::{io, process::ExitStatus};
+
 use bytes::Bytes;
+use either::Either;
 use reqwest::Method;
 use serde::Deserialize;
+use tokio::process::Command;
 
 use crate::{
     model::File,
     network::{self, http::request},
 };
 
+const LTN_URL: &str = "https://gist.githubusercontent.com/syrflover/43428606f107b77cf7dda7a68b16b0f3/raw/c65cc1fcb3a93a42771d3d1be20d61090162a999/main.ts";
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("can't parse url")]
+    #[error("parse url")]
     ParseUrl,
+
+    #[error("ltn: status = {0}; stdout = {1:?}; stderr = {2:?}")]
+    Ltn(ExitStatus, Either<String, Vec<u8>>, Either<String, Vec<u8>>),
+
+    #[error("io: {0}")]
+    Io(#[from] io::Error),
 }
 
 pub struct Image {
@@ -21,7 +33,7 @@ pub struct Image {
 impl Image {
     pub async fn new(id: u32, file: &File, kind: ImageKind) -> crate::Result<Self> {
         let url = {
-            let (original_url, thumbnail_url) = match parse_url(id, file).await {
+            let (original_url, thumbnail_url) = match parse_url(id, file).await? {
                 Some((original_url, thumbnail_url)) => (original_url, thumbnail_url),
                 None => return Err(Error::ParseUrl.into()),
             };
@@ -66,7 +78,7 @@ pub enum ImageKind {
 
 /// # Returns
 /// (image_url, thumbnail_url)
-async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
+async fn parse_url(id: u32, file: &File) -> Result<Option<(String, String)>, Error> {
     let id_string = id.to_string();
     let mut id_chars = id_string.chars();
 
@@ -114,24 +126,44 @@ async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
     log::debug!("x {}", x);
     // log::debug!("x {}", x);
 
-    let url = {
-        let internal_url =
-            std::env::var("LTN_URL").unwrap_or_else(|_| "http://localhost:13333".to_string());
-
-        format!(
-            "{}/gg.json?content-id={}&code-number={}",
-            internal_url, id, x
-        )
-    };
-
     #[derive(Deserialize)]
     struct GgJson {
         m: u32,
         b: String,
     }
 
-    let gg_json: GgJson =
-        serde_json::from_str(&reqwest::get(&url).await.unwrap().text().await.unwrap()).unwrap();
+    // let url = {
+    //     let internal_url =
+    //         std::env::var("LTN_URL").unwrap_or_else(|_| "http://localhost:13333".to_string());
+
+    //     format!(
+    //         "{}/gg.json?content-id={}&code-number={}",
+    //         internal_url, id, x
+    //     )
+    // };
+
+    // let gg_json: GgJson =
+    //     serde_json::from_str(&reqwest::get(&url).await.unwrap().text().await.unwrap()).unwrap();
+
+    let ltn = Command::new("deno")
+        .args(["run", "--allow-net", LTN_URL])
+        .arg(id.to_string())
+        .arg(x.to_string())
+        .output()
+        .await?;
+
+    let gg_json: GgJson = if ltn.status.success() {
+        serde_json::from_slice(&ltn.stdout).unwrap()
+    } else {
+        let stdout = String::from_utf8(ltn.stdout.clone())
+            .map(Either::Left)
+            .unwrap_or_else(|_| Either::Right(ltn.stdout));
+        let stderr = String::from_utf8(ltn.stderr.clone())
+            .map(Either::Left)
+            .unwrap_or_else(|_| Either::Right(ltn.stderr));
+
+        return Err(Error::Ltn(ltn.status, stdout, stderr));
+    };
 
     let n = gg_json.m;
 
@@ -201,7 +233,7 @@ async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
         )
     } else {
         // panic!("hasn't webp / avif image of {}", id);
-        return None;
+        return Ok(None);
     };
 
     // // log::debug!("image url = {}", image_url);
@@ -228,7 +260,7 @@ async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
         )
     } else {
         // panic!("hasn't webp / avif thumbnail of {}", id);
-        return None;
+        return Ok(None);
     };
 
     // log::debug!("iamge = {:?}", file);
@@ -241,7 +273,7 @@ async fn parse_url(id: u32, file: &File) -> Option<(String, String)> {
     // log::debug!("image_url = {}", image_url);
     // log::debug!("thumbnail_url = {}", thumbnail_url);
 
-    Some((image_url, thumbnail_url))
+    Ok(Some((image_url, thumbnail_url)))
 }
 
 #[cfg(test)]
@@ -270,7 +302,7 @@ mod tests {
 
         let (_, file) = &gallery.files[0];
 
-        super::parse_url(id, file).await;
+        super::parse_url(id, file).await.unwrap();
     }
 
     #[tokio::test]
