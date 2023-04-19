@@ -15,8 +15,8 @@ const LTN_URL: &str = "https://gist.githubusercontent.com/syrflover/43428606f107
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("parse url")]
-    ParseUrl,
+    #[error("hasn't avif or webp")]
+    HasNotAvifOrWebp,
 
     #[error("ltn: status = {0}; stdout = {1:?}; stderr = {2:?}")]
     Ltn(ExitStatus, Either<String, Vec<u8>>, Either<String, Vec<u8>>),
@@ -35,7 +35,7 @@ impl Image {
         let url = {
             let (original_url, thumbnail_url) = match parse_url(id, file).await? {
                 Some((original_url, thumbnail_url)) => (original_url, thumbnail_url),
-                None => return Err(Error::ParseUrl.into()),
+                None => return Err(Error::HasNotAvifOrWebp.into()),
             };
 
             match kind {
