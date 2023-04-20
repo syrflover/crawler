@@ -5,6 +5,25 @@ use reqwest::{
 
 use crate::network::http::request_with_headers;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Language {
+    All,
+    Korean,
+    Japanese,
+    English,
+}
+
+impl Language {
+    fn to_nozomi_url(&self) -> &str {
+        match self {
+            Language::All => "https://ltn.hitomi.la/index-all.nozomi",
+            Language::Korean => "https://ltn.hitomi.la/index-korean.nozomi",
+            Language::Japanese => "https://ltn.hitomi.la/index-japanese.nozomi",
+            Language::English => "https://ltn.hitomi.la/index-english.nozomi",
+        }
+    }
+}
+
 fn range(page: usize, per_page: usize) -> (usize, usize) {
     let start_bytes = (page - 1) * per_page * 4;
     let end_bytes = start_bytes + per_page * 4 - 1;
@@ -12,8 +31,14 @@ fn range(page: usize, per_page: usize) -> (usize, usize) {
     (start_bytes, end_bytes)
 }
 
-pub async fn parse(page: usize, per_page: usize) -> crate::Result<Vec<u32>> {
-    let url = "https://ltn.hitomi.la/index-korean.nozomi";
+/// tested only korean
+pub async fn parse(
+    lang: impl Into<Option<Language>>,
+    page: usize,
+    per_page: usize,
+) -> crate::Result<Vec<u32>> {
+    let lang = (lang.into() as Option<_>).unwrap_or(Language::All);
+    let url = lang.to_nozomi_url();
 
     let (start_bytes, end_bytes) = range(page, per_page);
 
@@ -27,9 +52,7 @@ pub async fn parse(page: usize, per_page: usize) -> crate::Result<Vec<u32>> {
             .unwrap(),
     );
 
-    let resp = request_with_headers(Method::GET, [range].into_iter(), url)
-        .await
-        .unwrap();
+    let resp = request_with_headers(Method::GET, [range].into_iter(), url).await?;
 
     let bytes = resp.bytes().await?;
 
@@ -62,11 +85,12 @@ pub async fn parse(page: usize, per_page: usize) -> crate::Result<Vec<u32>> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[tokio::test]
     async fn parse_nozomi() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
-        let _ids = super::parse(1, 25).await.unwrap();
+        let _ids = parse(Language::Korean, 1, 25).await.unwrap();
     }
 }

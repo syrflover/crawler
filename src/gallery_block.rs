@@ -227,7 +227,7 @@ mod tests {
 
     #[tokio::test]
     async fn parse_meta() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
         let ids = nozomi::parse(1, 25).await.unwrap();
 

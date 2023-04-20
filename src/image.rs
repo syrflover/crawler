@@ -1,22 +1,33 @@
-use std::{io, process::ExitStatus};
+use std::{
+    io,
+    process::{Command, ExitStatus},
+};
 
 use bytes::Bytes;
 use either::Either;
 use reqwest::Method;
 use serde::Deserialize;
-use tokio::process::Command;
 
 use crate::{
     model::File,
     network::{self, http::request},
 };
 
-const LTN_URL: &str = "https://gist.githubusercontent.com/syrflover/43428606f107b77cf7dda7a68b16b0f3/raw/c65cc1fcb3a93a42771d3d1be20d61090162a999/main.ts";
+const LTN_URL: &str = "https://raw.githubusercontent.com/syrflover/ltn/master/src/main.ts";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("hasn't avif or webp")]
     HasNotAvifOrWebp,
+
+    #[error("can't parsed u32 from hash: hash = {0}; hex = {1}")]
+    ParseU32FromHash(String, String),
+
+    #[error("can't parsed prefix subdomain: x = {0}")]
+    ParsePrefixOfSubdomain(u32),
+
+    #[error("deserialize gg_json: {0}")]
+    DeserializeGgJson(serde_json::Error),
 
     #[error("ltn: status = {0}; stdout = {1:?}; stderr = {2:?}")]
     Ltn(ExitStatus, Either<String, Vec<u8>>, Either<String, Vec<u8>>),
@@ -31,12 +42,9 @@ pub struct Image {
 }
 
 impl Image {
-    pub async fn new(id: u32, file: &File, kind: ImageKind) -> crate::Result<Self> {
+    pub fn new(id: u32, file: &File, kind: ImageKind) -> crate::Result<Self> {
         let url = {
-            let (original_url, thumbnail_url) = match parse_url(id, file).await? {
-                Some((original_url, thumbnail_url)) => (original_url, thumbnail_url),
-                None => return Err(Error::HasNotAvifOrWebp.into()),
-            };
+            let (original_url, thumbnail_url) = parse_url(id, file)?;
 
             match kind {
                 ImageKind::Original => original_url,
@@ -49,7 +57,6 @@ impl Image {
 
     pub fn ext(&self) -> Option<&str> {
         self.url.split('.').last()
-        // .expect("not include ext")
     }
 
     pub fn kind(&self) -> ImageKind {
@@ -78,82 +85,54 @@ pub enum ImageKind {
 
 /// # Returns
 /// (image_url, thumbnail_url)
-async fn parse_url(id: u32, file: &File) -> Result<Option<(String, String)>, Error> {
-    let id_string = id.to_string();
-    let mut id_chars = id_string.chars();
+fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
+    // let id_string = id.to_string();
+    // let mut id_chars = id_string.chars();
 
-    let c: u32 = id_chars
-        .nth(id_string.len() - 1)
-        .unwrap()
-        .to_string()
-        .encode_utf16()
-        .next()
-        .unwrap()
-        .into();
+    // let c: u32 = id_chars
+    //     .nth(id_string.len() - 1)
+    //     .unwrap()
+    //     .to_string()
+    //     .encode_utf16()
+    //     .next()
+    //     .unwrap()
+    //     .into();
 
-    log::debug!("id_char utf16 code {}", c);
+    // log::debug!("id_char utf16 code {}", c);
 
     let base_subdomain = if file.has_webp || file.has_avif {
-        "a".to_string()
-        /*
-        let number_of_frontends = 2;
-
-        char::from_u32(97 + c % number_of_frontends)
-        .unwrap()
-        .to_string() */
+        'a'
     } else {
-        "b".to_string()
+        'b'
     };
 
-    log::debug!("1st subdomain {}", base_subdomain);
+    log::debug!("base subdomain {}", base_subdomain);
 
-    // log::debug!("file {:?}", file);
-
-    let postfix = &file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
+    let postfix = file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
 
     log::debug!("hash {}", file.hash);
     log::debug!("postfix {:?}", postfix);
 
-    // log::debug!("hash {}", file.hash);
-    // log::debug!("postfix {:?}", postfix);
+    let parsed_hex_from_hash = format!("{}{}{}", postfix[2], postfix[0], postfix[1]);
+    let x = u32::from_str_radix(&parsed_hex_from_hash, 16)
+        .map_err(|_| Error::ParseU32FromHash(file.hash.clone(), parsed_hex_from_hash.clone()))?;
 
-    let x = format!("{}{}{}", postfix[2], postfix[0], postfix[1]);
+    log::debug!("parsed u32 from hash {} -> {}", parsed_hex_from_hash, x);
 
-    log::debug!("x {}", x);
-
-    // if let Ok(x) = u32::from_str_radix(&x, 16) {
-    let x = u32::from_str_radix(&x, 16).unwrap();
-    log::debug!("x {}", x);
-    // log::debug!("x {}", x);
-
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     struct GgJson {
         m: u32,
         b: String,
     }
 
-    // let url = {
-    //     let internal_url =
-    //         std::env::var("LTN_URL").unwrap_or_else(|_| "http://localhost:13333".to_string());
-
-    //     format!(
-    //         "{}/gg.json?content-id={}&code-number={}",
-    //         internal_url, id, x
-    //     )
-    // };
-
-    // let gg_json: GgJson =
-    //     serde_json::from_str(&reqwest::get(&url).await.unwrap().text().await.unwrap()).unwrap();
-
     let ltn = Command::new("deno")
         .args(["run", "--allow-net", LTN_URL])
         .arg(id.to_string())
         .arg(x.to_string())
-        .output()
-        .await?;
+        .output()?;
 
     let gg_json: GgJson = if ltn.status.success() {
-        serde_json::from_slice(&ltn.stdout).unwrap()
+        serde_json::from_slice(&ltn.stdout).map_err(Error::DeserializeGgJson)?
     } else {
         let stdout = String::from_utf8(ltn.stdout.clone())
             .map(Either::Left)
@@ -165,61 +144,14 @@ async fn parse_url(id: u32, file: &File) -> Result<Option<(String, String)>, Err
         return Err(Error::Ltn(ltn.status, stdout, stderr));
     };
 
-    let n = gg_json.m;
+    log::debug!("{gg_json:?}");
 
-    /* if x < 0x7c {
-        n = 1;
-    } */
-    /* if x < 0x7a {
-        n = 1;
-    } */
-    /* if x < 0x44 {
-        n = 2;
-    } */
-    log::debug!("n {}", n);
+    let prefix_of_subdomain =
+        char::from_u32(97 + gg_json.m).ok_or(Error::ParsePrefixOfSubdomain(gg_json.m))?;
 
-    let calculated_subdomain = char::from_u32(97 + n).unwrap().to_string();
+    let subdomain = format!("{}{}", prefix_of_subdomain, base_subdomain);
 
-    let subdomain = format!("{}{}", calculated_subdomain, base_subdomain);
-
-    log::debug!("2nd subdomain {}", subdomain);
-    // log::debug!("2nd subdomain {}", subdomain);
-
-    /*    let b = 16;
-
-    let r = regex::Regex::new("/[0-9a-f]/([0-9a-f]{2})//").expect("regex create error");
-    let m = r.find_iter(file); */
-
-    /* let image_url = if file.has_webp() == false {
-        format!(
-            "https://{}b.hitomi.la/images/{}/{}{}/{}.{}",
-            subdomain,
-            postfix[2],
-            postfix[0],
-            postfix[1],
-            file.hash,
-            file.name.split(".").last().unwrap()
-        )
-    } else if file.hash.as_str() == "" {
-        format!("https://{}a.hitomi.la/webp/{}.webp", subdomain, file.name)
-    } else if file.hash.len() < 3 {
-        format!("https://{}a.hitomi.la/webp/{}.webp", subdomain, file.hash)
-    } else {
-        format!(
-            "https://{}a.hitomi.la/webp/{}/{}{}/{}.webp",
-            subdomain, postfix[2], postfix[0], postfix[1], file.hash
-        )
-    }; */
-
-    /* let image_url = format!(
-        "https://{}b.hitomi.la/images/{}/{}{}/{}.{}",
-        subdomain,
-        postfix[2],
-        postfix[0],
-        postfix[1],
-        file.hash,
-        file.name.split('.').last().unwrap()
-    ); */
+    log::debug!("subdomain {}", subdomain);
 
     let image_url = if file.has_avif {
         format!(
@@ -232,48 +164,28 @@ async fn parse_url(id: u32, file: &File) -> Result<Option<(String, String)>, Err
             subdomain, gg_json.b, x, file.hash,
         )
     } else {
-        // panic!("hasn't webp / avif image of {}", id);
-        return Ok(None);
+        return Err(Error::HasNotAvifOrWebp);
     };
-
-    // // log::debug!("image url = {}", image_url);
-
-    /* let thumbnail_url = format!(
-        "https://tn.hitomi.la/bigtn/{}/{}{}/{}.jpg",
-        postfix[2], postfix[0], postfix[1], file.hash
-    ); */
-
-    /* let thumbnail_url = format!(
-        "https://{}tn.hitomi.la/bigtn/{}/{}{}/{}.jpg",
-        calculated_subdomain, postfix[2], postfix[0], postfix[1], file.hash
-    ); */
 
     let thumbnail_url = if file.has_avif {
         format!(
             "https://{}tn.hitomi.la/avifbigtn/{}/{}{}/{}.avif",
-            calculated_subdomain, postfix[2], postfix[0], postfix[1], file.hash
+            prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
         )
     } else if file.has_webp {
         format!(
             "https://{}tn.hitomi.la/webpbigtn/{}/{}{}/{}.webp",
-            calculated_subdomain, postfix[2], postfix[0], postfix[1], file.hash
+            prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
         )
     } else {
-        // panic!("hasn't webp / avif thumbnail of {}", id);
-        return Ok(None);
+        return Err(Error::HasNotAvifOrWebp);
     };
 
-    // log::debug!("iamge = {:?}", file);
-    // log::debug!("image url = {}", image_url);
-    // log::debug!("thumbnail_url = {}", thumbnail_url);
-
+    // log::debug!("image_file = {:?}", file);
     log::debug!("image_url = {}", image_url);
     log::debug!("thumbnail_url = {}", thumbnail_url);
 
-    // log::debug!("image_url = {}", image_url);
-    // log::debug!("thumbnail_url = {}", thumbnail_url);
-
-    Ok(Some((image_url, thumbnail_url)))
+    Ok((image_url, thumbnail_url))
 }
 
 #[cfg(test)]
@@ -282,16 +194,18 @@ mod tests {
 
     use futures::stream::{self, StreamExt};
 
-    use crate::{gallery, nozomi};
+    use crate::{
+        gallery,
+        nozomi::{self, Language},
+    };
 
-    use super::{Image, ImageKind};
+    use super::*;
 
     #[tokio::test]
-    #[ignore = "need external service"]
     async fn parse_image_url() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
-        let ids = nozomi::parse(1, 25).await.unwrap();
+        let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         let id = ids[2];
 
@@ -302,15 +216,14 @@ mod tests {
 
         let (_, file) = &gallery.files[0];
 
-        super::parse_url(id, file).await.unwrap();
+        parse_url(id, file).unwrap();
     }
 
     #[tokio::test]
-    #[ignore = "using many network resource"]
     async fn download_thumbnail() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
-        let ids = nozomi::parse(1, 25).await.unwrap();
+        let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         let id = ids[2];
 
@@ -321,7 +234,7 @@ mod tests {
 
         let (_, file) = &gallery.files[0];
 
-        let thumbnail = Image::new(id, file, ImageKind::Thumbnail).await.unwrap();
+        let thumbnail = Image::new(id, file, ImageKind::Thumbnail).unwrap();
 
         let buf = thumbnail.download().await.unwrap();
 
@@ -332,11 +245,11 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "using many network resource"]
+    #[ignore = "use many network resource"]
     async fn download_images() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
-        let ids = nozomi::parse(1, 25).await.unwrap();
+        let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         let id = ids[2];
 
@@ -347,11 +260,9 @@ mod tests {
 
         let gallery_dir = &gallery_dir;
         stream::iter(gallery.files.iter())
-            .map(|(_, file)| Image::new(id, file, ImageKind::Original))
+            .map(|(_, file)| Image::new(id, file, ImageKind::Original).unwrap())
             .enumerate()
-            .for_each(|(p, fut)| async move {
-                let image = fut.await.unwrap();
-
+            .for_each(|(p, image)| async move {
                 let buf = image.download().await.unwrap();
 
                 let name = format!("{}/{p}.{}", gallery_dir, image.ext().unwrap());

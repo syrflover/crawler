@@ -9,12 +9,14 @@ mod sealed {
 
     use crate::model;
 
+    type Flag = Either<String, u8>;
+
     #[derive(Debug, Deserialize)]
     pub struct File {
         #[serde(with = "either::serde_untagged")]
-        pub hasavif: Either<String, u8>,
+        pub hasavif: Flag,
         #[serde(with = "either::serde_untagged")]
-        pub haswebp: Either<String, u8>,
+        pub haswebp: Flag,
         pub height: usize,
         pub width: usize,
         pub name: String,
@@ -27,22 +29,16 @@ mod sealed {
         pub url: String,
     }
 
-    fn default_either_flag() -> Option<Either<String, u8>> {
+    fn default_flag() -> Option<Flag> {
         Some(Either::Right(0))
     }
 
     #[derive(Debug, Deserialize)]
     pub struct Tag {
-        #[serde(
-            with = "either::serde_untagged_optional",
-            default = "default_either_flag"
-        )]
-        pub female: Option<Either<String, u8>>,
-        #[serde(
-            with = "either::serde_untagged_optional",
-            default = "default_either_flag"
-        )]
-        pub male: Option<Either<String, u8>>,
+        #[serde(with = "either::serde_untagged_optional", default = "default_flag")]
+        pub female: Option<Flag>,
+        #[serde(with = "either::serde_untagged_optional", default = "default_flag")]
+        pub male: Option<Flag>,
         pub tag: String,
         pub url: String,
     }
@@ -66,7 +62,7 @@ mod sealed {
         pub url: String,
     }
 
-    fn null_to_default<'de, D, T>(d: D) -> Result<T, D::Error>
+    fn unwrap_or_default<'de, D, T>(d: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
         T: Default + Deserialize<'de>,
@@ -85,15 +81,15 @@ mod sealed {
         pub id: Either<String, u32>,
         pub title: String,
         pub language: Option<String>,
-        #[serde(default, deserialize_with = "null_to_default")]
+        #[serde(default, deserialize_with = "unwrap_or_default")]
         pub artists: Vec<Artist>,
-        #[serde(default, deserialize_with = "null_to_default")]
+        #[serde(default, deserialize_with = "unwrap_or_default")]
         pub groups: Vec<Group>,
-        #[serde(default, deserialize_with = "null_to_default")]
+        #[serde(default, deserialize_with = "unwrap_or_default")]
         pub tags: Vec<Tag>,
-        #[serde(default, deserialize_with = "null_to_default")]
+        #[serde(default, deserialize_with = "unwrap_or_default")]
         pub characters: Vec<Character>,
-        #[serde(rename = "parodys", default, deserialize_with = "null_to_default")]
+        #[serde(rename = "parodys", default, deserialize_with = "unwrap_or_default")]
         pub series: Vec<Series>,
         pub date: String,
     }
@@ -221,42 +217,60 @@ mod sealed {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(
+        "deserialize gallery:\
+         \n\n\
+         {0}\
+         \n\n\
+         {1}"
+    )]
+    DeserializeGallery(String, serde_json::Error),
+}
+
 pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
     let url = format!("https://ltn.hitomi.la/galleries/{id}.js");
 
     let resp = request(Method::GET, &url).await?;
 
-    let buf = resp.text().await?;
-    let buf = buf.split('=').nth(1).unwrap();
+    let txt = resp.text().await?;
+    let (_, x) = txt.split_once('=').unwrap_or_default();
 
-    let gallery: model::Gallery = serde_json::from_str::<sealed::Gallery>(buf).unwrap().into();
+    let gallery: model::Gallery = serde_json::from_str::<sealed::Gallery>(x)
+        .map_err(|err| Error::DeserializeGallery(txt, err))?
+        .into();
 
     log::debug!("{gallery:#?}");
     log::debug!("page = {}", gallery.files.len());
-
-    /* let mut file = std::fs::File::create("./gallery.json").unwrap();
-
-    file.write_all(buf.as_bytes()).unwrap(); */
 
     Ok(gallery)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::nozomi;
+    use crate::nozomi::{self, Language};
+
+    use super::*;
 
     #[tokio::test]
     async fn parse_gallery() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
+        simple_logger::init_with_level(log::Level::Debug).ok();
 
-        let _ids = nozomi::parse(1, 25).await.unwrap();
+        let _ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         let mut galleries = Vec::new();
 
         // for id in ids {
-        let gallery = super::parse(2288317).await.unwrap();
-
-        galleries.push(gallery);
+        match parse(2288317).await {
+            Ok(gallery) => {
+                galleries.push(gallery);
+            }
+            Err(err) => {
+                log::error!("{err}");
+                panic!();
+            }
+        }
         // }
 
         let g = &galleries[0];

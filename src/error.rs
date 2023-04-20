@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("Image: {0}")]
     Image(#[from] crate::image::Error),
+
+    #[error("Gallery: {0}")]
+    Gallery(#[from] crate::gallery::Error),
 }
