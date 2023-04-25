@@ -40,7 +40,7 @@ pub async fn request_with_headers(
         .request(method, url)
         .header(header::REFERER, "https://hitomi.la")
         .headers(HeaderMap::from_iter(headers))
-        .timeout(Duration::from_secs(3));
+        .timeout(Duration::from_secs(10));
 
     let mut retry = 0;
 
@@ -50,7 +50,7 @@ pub async fn request_with_headers(
         let resp = match resp {
             Ok(resp) => resp,
             Err(err) => {
-                if err.is_timeout() && retry < 10 {
+                if err.is_timeout() && retry < 6 {
                     retry += 1;
                     continue;
                 } else {
