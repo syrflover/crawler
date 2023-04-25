@@ -50,7 +50,7 @@ pub async fn request_with_headers(
         let resp = match resp {
             Ok(resp) => resp,
             Err(err) => {
-                if err.is_timeout() && retry < 6 {
+                if (err.is_body() || err.is_timeout()) && retry < 6 {
                     retry += 1;
                     continue;
                 } else {
