@@ -1,6 +1,5 @@
 pub mod error;
 pub mod gallery;
-// pub mod gallery_block;
 pub mod image;
 pub mod model;
 pub mod network;
