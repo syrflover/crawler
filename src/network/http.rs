@@ -36,21 +36,26 @@ pub async fn request_with_headers(
     headers: impl Iterator<Item = (HeaderName, HeaderValue)>,
     url: &str,
 ) -> reqwest::Result<Response> {
-    let client = reqwest::Client::new()
+    let mut request = reqwest::Client::new()
         .request(method, url)
         .header(header::REFERER, "https://hitomi.la")
-        .headers(HeaderMap::from_iter(headers))
-        .timeout(Duration::from_secs(10));
+        .headers(HeaderMap::from_iter(headers));
+
+    let is_ltn = url.starts_with("https://ltn.hitomi.la");
+
+    if is_ltn {
+        request = request.timeout(Duration::from_secs(3));
+    }
 
     let mut retry = 0;
 
     let resp = loop {
-        let resp = client.try_clone().unwrap().send().await;
+        let resp = request.try_clone().unwrap().send().await;
 
         let resp = match resp {
             Ok(resp) => resp,
             Err(err) => {
-                if (err.is_body() || err.is_timeout()) && retry < 6 {
+                if is_ltn && err.is_timeout() && retry < 10 {
                     retry += 1;
                     continue;
                 } else {
