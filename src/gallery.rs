@@ -182,7 +182,7 @@ mod sealed {
             let tags = g.tags.into_iter().map_into();
 
             /* let date = {
-                log::debug!("{:?}", g.date.chars().rev().nth(2));
+                tracing::debug!("{:?}", g.date.chars().rev().nth(2));
                 // "2022-07-25 06:30:00-05"
                 if let Some('-' | '+') = g.date.chars().rev().nth(2) {
                     g.date + ":00"
@@ -191,7 +191,7 @@ mod sealed {
                 }
             };
 
-            log::debug!("{date}");
+            tracing::debug!("{date}");
             */
 
             Self {
@@ -241,21 +241,24 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
         .map_err(|err| Error::DeserializeGallery(txt, err))?
         .into();
 
-    log::debug!("{gallery:#?}");
-    log::debug!("page = {}", gallery.files.len());
+    tracing::debug!("{gallery:#?}");
+    tracing::debug!("page = {}", gallery.files.len());
 
     Ok(gallery)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::nozomi::{self, Language};
+    use crate::{
+        nozomi::{self, Language},
+        tests::tracing,
+    };
 
     use super::*;
 
     #[tokio::test]
     async fn parse_gallery() {
-        simple_logger::init_with_level(log::Level::Debug).ok();
+        tracing();
 
         let _ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
@@ -267,7 +270,7 @@ mod tests {
                 galleries.push(gallery);
             }
             Err(err) => {
-                log::error!("{err}");
+                tracing::error!("{err}");
                 panic!();
             }
         }
@@ -275,6 +278,6 @@ mod tests {
 
         let g = &galleries[0];
 
-        log::debug!("{g:#?}");
+        tracing::debug!("{g:#?}");
     }
 }

@@ -42,8 +42,8 @@ pub async fn parse(
 
     let (start_bytes, end_bytes) = range(page, per_page);
 
-    log::debug!("start_bytes = {}", start_bytes);
-    log::debug!("end_bytes = {}", end_bytes);
+    tracing::debug!("start_bytes = {}", start_bytes);
+    tracing::debug!("end_bytes = {}", end_bytes);
 
     let range: (HeaderName, HeaderValue) = (
         header::RANGE,
@@ -71,25 +71,27 @@ pub async fn parse(
             }
         }
 
-        // log::debug!("id = {}", temp);
+        // tracing::debug!("id = {}", temp);
 
         res.push(temp);
     }
 
     res.sort_by(|a, b| b.cmp(a));
 
-    log::debug!("ids = {res:?}");
+    tracing::debug!("ids = {res:?}");
 
     Ok(res)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::tests::tracing;
+
     use super::*;
 
     #[tokio::test]
     async fn parse_nozomi() {
-        simple_logger::init_with_level(log::Level::Debug).ok();
+        tracing();
 
         let _ids = parse(Language::Korean, 1, 25).await.unwrap();
     }

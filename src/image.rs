@@ -98,7 +98,7 @@ fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
     //     .unwrap()
     //     .into();
 
-    // log::debug!("id_char utf16 code {}", c);
+    // tracing::debug!("id_char utf16 code {}", c);
 
     let base_subdomain = if file.has_webp || file.has_avif {
         'a'
@@ -106,18 +106,18 @@ fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
         'b'
     };
 
-    log::debug!("base subdomain {}", base_subdomain);
+    tracing::debug!("base subdomain {}", base_subdomain);
 
     let postfix = file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
 
-    log::debug!("hash {}", file.hash);
-    log::debug!("postfix {:?}", postfix);
+    tracing::debug!("hash {}", file.hash);
+    tracing::debug!("postfix {:?}", postfix);
 
     let parsed_hex_from_hash = format!("{}{}{}", postfix[2], postfix[0], postfix[1]);
     let x = u32::from_str_radix(&parsed_hex_from_hash, 16)
         .map_err(|_| Error::ParseU32FromHash(file.hash.clone(), parsed_hex_from_hash.clone()))?;
 
-    log::debug!("parsed u32 from hash {} -> {}", parsed_hex_from_hash, x);
+    tracing::debug!("parsed u32 from hash {} -> {}", parsed_hex_from_hash, x);
 
     #[derive(Debug, Deserialize)]
     struct GgJson {
@@ -144,14 +144,14 @@ fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
         return Err(Error::Ltn(ltn.status, stdout, stderr));
     };
 
-    log::debug!("{gg_json:?}");
+    tracing::debug!("{gg_json:?}");
 
     let prefix_of_subdomain =
         char::from_u32(97 + gg_json.m).ok_or(Error::ParsePrefixOfSubdomain(gg_json.m))?;
 
     let subdomain = format!("{}{}", prefix_of_subdomain, base_subdomain);
 
-    log::debug!("subdomain {}", subdomain);
+    tracing::debug!("subdomain {}", subdomain);
 
     let image_url = if file.has_avif {
         format!(
@@ -181,9 +181,9 @@ fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
         return Err(Error::HasNotAvifOrWebp);
     };
 
-    // log::debug!("image_file = {:?}", file);
-    log::debug!("image_url = {}", image_url);
-    log::debug!("thumbnail_url = {}", thumbnail_url);
+    // tracing::debug!("image_file = {:?}", file);
+    tracing::debug!("image_url = {}", image_url);
+    tracing::debug!("thumbnail_url = {}", thumbnail_url);
 
     Ok((image_url, thumbnail_url))
 }
@@ -197,13 +197,14 @@ mod tests {
     use crate::{
         gallery,
         nozomi::{self, Language},
+        tests::tracing,
     };
 
     use super::*;
 
     #[tokio::test]
     async fn parse_image_url() {
-        simple_logger::init_with_level(log::Level::Debug).ok();
+        tracing();
 
         let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
@@ -221,7 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn download_thumbnail() {
-        simple_logger::init_with_level(log::Level::Debug).ok();
+        tracing();
 
         let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
@@ -247,7 +248,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "use many network resource"]
     async fn download_images() {
-        simple_logger::init_with_level(log::Level::Debug).ok();
+        tracing();
 
         let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
