@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -20,11 +18,17 @@ pub enum TagKind {
     Misc,
 }
 
-impl Display for TagKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl TagKind {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
+impl AsRef<str> for TagKind {
+    fn as_ref(&self) -> &str {
         use TagKind::*;
 
-        let x = match self {
+        match self {
             Artist => "artist",
             Group => "group",
             Series => "series",
@@ -32,9 +36,7 @@ impl Display for TagKind {
             Female => "female",
             Male => "male",
             Misc => "misc",
-        };
-
-        write!(f, "{x}")
+        }
     }
 }
 
