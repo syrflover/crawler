@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, time::Duration};
+use std::{iter, time::Duration};
 
 use reqwest::{
     header::{self, HeaderMap, HeaderName, HeaderValue},
@@ -11,24 +11,8 @@ pub enum Error {
     Status(StatusCode),
 }
 
-struct EmptyIter<T>(PhantomData<T>);
-
-impl<T> EmptyIter<T> {
-    pub fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<T> Iterator for EmptyIter<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        None
-    }
-}
-
 pub async fn request(method: Method, url: &str) -> reqwest::Result<Response> {
-    request_with_headers(method, EmptyIter::new(), url).await
+    request_with_headers(method, iter::empty(), url).await
 }
 
 pub async fn request_with_headers(
