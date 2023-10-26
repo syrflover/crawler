@@ -264,8 +264,10 @@ mod tests {
 
         let mut galleries = Vec::new();
 
+        // kind=imageset : 2714262
+
         // for id in ids {
-        match parse(2288317).await {
+        match parse(2714262).await {
             Ok(gallery) => {
                 galleries.push(gallery);
             }
@@ -278,6 +280,7 @@ mod tests {
 
         let g = &galleries[0];
 
-        tracing::debug!("{g:#?}");
+        // tracing::debug!("{g:#?}");
+        tracing::debug!("kind={}", g.kind);
     }
 }

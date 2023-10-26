@@ -32,8 +32,8 @@ pub enum Error {
     #[error("ltn: status = {0}; stdout = {1:?}; stderr = {2:?}")]
     Ltn(ExitStatus, Either<String, Vec<u8>>, Either<String, Vec<u8>>),
 
-    #[error("io: {0}")]
-    Io(#[from] io::Error),
+    #[error("command: {0}")]
+    Command(io::Error),
 }
 
 pub struct Image {
@@ -129,7 +129,8 @@ fn parse_url(id: u32, file: &File) -> Result<(String, String), Error> {
         .args(["run", "--allow-net", LTN_URL])
         .arg(id.to_string())
         .arg(x.to_string())
-        .output()?;
+        .output()
+        .map_err(Error::Command)?;
 
     let gg_json: GgJson = if ltn.status.success() {
         serde_json::from_slice(&ltn.stdout).map_err(Error::DeserializeGgJson)?
@@ -224,9 +225,10 @@ mod tests {
     async fn download_thumbnail() {
         tracing();
 
-        let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
+        // let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
-        let id = ids[2];
+        // let id = ids[2];
+        let id = 2709834;
 
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
@@ -250,9 +252,10 @@ mod tests {
     async fn download_images() {
         tracing();
 
-        let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
+        // let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
-        let id = ids[2];
+        // let id = ids[2];
+        let id = 2709834;
 
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
@@ -260,7 +263,7 @@ mod tests {
         let gallery = gallery::parse(id).await.unwrap();
 
         let gallery_dir = &gallery_dir;
-        stream::iter(gallery.files.iter())
+        stream::iter(gallery.files.iter().take(1))
             .map(|(_, file)| Image::new(id, file, ImageKind::Original).unwrap())
             .enumerate()
             .for_each(|(p, image)| async move {
