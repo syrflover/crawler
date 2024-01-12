@@ -14,7 +14,7 @@ pub enum Language {
 }
 
 impl Language {
-    fn to_nozomi_url(&self) -> &str {
+    fn to_nozomi_url(self) -> &'static str {
         match self {
             Language::All => "https://ltn.hitomi.la/index-all.nozomi",
             Language::Korean => "https://ltn.hitomi.la/index-korean.nozomi",
@@ -64,7 +64,7 @@ pub async fn parse(
         for j in 0..3 {
             // https://github.com/Project-Madome/Madome-Synchronizer/issues/1
             if let Some(a) = bytes.get(i + (3 - j)) {
-                let a: u32 = (*a).try_into().unwrap();
+                let a: u32 = (*a).into();
                 temp += a << (j << 3);
             } else {
                 break;
