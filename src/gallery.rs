@@ -1,4 +1,4 @@
-use reqwest::Method;
+use reqwest::{Method, StatusCode};
 
 use crate::{model, network::http::request};
 
@@ -227,14 +227,22 @@ pub enum Error {
          {1}"
     )]
     DeserializeGallery(String, serde_json::Error),
+    #[error("{0}: {1}")]
+    Status(StatusCode, String),
 }
 
 pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
     let url = format!("https://ltn.hitomi.la/galleries/{id}.js");
 
     let resp = request(Method::GET, &url).await?;
+    let status_code = resp.status();
 
     let txt = resp.text().await?;
+
+    if !status_code.is_success() {
+        return Err(Error::Status(status_code, txt).into());
+    }
+
     let (_, x) = txt.split_once('=').unwrap_or_default();
 
     let gallery: model::Gallery = serde_json::from_str::<sealed::Gallery>(x)
