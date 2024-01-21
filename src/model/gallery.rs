@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -11,5 +12,5 @@ pub struct Gallery {
     pub files: Vec<(usize, File)>,
     pub language: Option<String>,
     pub tags: Vec<Tag>,
-    pub date: String,
+    pub date: DateTime<Utc>,
 }
