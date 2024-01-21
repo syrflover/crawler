@@ -9,6 +9,8 @@ mod sealed {
 
     use crate::model;
 
+    use super::Error;
+
     type Flag = Either<String, u8>;
 
     #[derive(Debug, Deserialize)]
@@ -17,6 +19,8 @@ mod sealed {
         pub hasavif: Flag,
         #[serde(with = "either::serde_untagged")]
         pub haswebp: Flag,
+        #[serde(with = "either::serde_untagged")]
+        pub hasjxl: Flag,
         pub height: usize,
         pub width: usize,
         pub name: String,
@@ -98,10 +102,12 @@ mod sealed {
         fn from(file: File) -> Self {
             let has_webp = file.haswebp.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
             let has_avif = file.hasavif.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
+            let has_jxl = file.hasjxl.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
 
             Self {
                 has_webp,
                 has_avif,
+                has_jxl,
                 width: file.width,
                 height: file.height,
                 hash: file.hash,
@@ -171,8 +177,10 @@ mod sealed {
         }
     }
 
-    impl From<Gallery> for model::Gallery {
-        fn from(g: Gallery) -> Self {
+    impl TryFrom<Gallery> for model::Gallery {
+        type Error = Error;
+
+        fn try_from(g: Gallery) -> Result<Self, Self::Error> {
             let id = g.id.right_or_else(|x| x.parse().unwrap());
 
             let artists = g.artists.into_iter().map_into();
@@ -181,20 +189,12 @@ mod sealed {
             let characters = g.characters.into_iter().map_into();
             let tags = g.tags.into_iter().map_into();
 
-            /* let date = {
-                tracing::debug!("{:?}", g.date.chars().rev().nth(2));
-                // "2022-07-25 06:30:00-05"
-                if let Some('-' | '+') = g.date.chars().rev().nth(2) {
-                    g.date + ":00"
-                } else {
-                    g.date
-                }
-            };
+            let date = {
+                let x = g.date.trim().replacen(' ', "T", 1) + ":00";
+                x.parse().map_err(|e| Error::ParseDateTime(x, e))
+            }?;
 
-            tracing::debug!("{date}");
-            */
-
-            Self {
+            Ok(Self {
                 id,
                 title: g.title,
                 kind: g.kind,
@@ -211,8 +211,8 @@ mod sealed {
                     .chain(characters)
                     .chain(tags)
                     .collect(),
-                date: g.date,
-            }
+                date,
+            })
         }
     }
 }
@@ -227,6 +227,8 @@ pub enum Error {
          {1}"
     )]
     DeserializeGallery(String, serde_json::Error),
+    #[error("parse datetime: {0}: {1}")]
+    ParseDateTime(String, chrono::ParseError),
     #[error("{0}: {1}")]
     Status(StatusCode, String),
 }
@@ -247,7 +249,7 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
 
     let gallery: model::Gallery = serde_json::from_str::<sealed::Gallery>(x)
         .map_err(|err| Error::DeserializeGallery(txt, err))?
-        .into();
+        .try_into()?;
 
     tracing::debug!("{gallery:#?}");
     tracing::debug!("page = {}", gallery.files.len());
