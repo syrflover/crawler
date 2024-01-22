@@ -1,4 +1,5 @@
 use reqwest::{Method, StatusCode};
+use tap::Tap;
 
 use crate::{model, network::http::request};
 
@@ -100,9 +101,9 @@ mod sealed {
 
     impl From<File> for model::File {
         fn from(file: File) -> Self {
-            let has_webp = file.haswebp.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
-            let has_avif = file.hasavif.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
-            let has_jxl = file.hasjxl.right_or_else(|x| x.parse().unwrap_or(0)) == 1;
+            let has_webp = file.haswebp.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
+            let has_avif = file.hasavif.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
+            let has_jxl = file.hasjxl.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
 
             Self {
                 has_webp,
@@ -154,10 +155,8 @@ mod sealed {
 
     impl From<Tag> for model::Tag {
         fn from(x: Tag) -> Self {
-            // why use .unwrap()?
-            // breaking change, if this value is not 0 and 1
-            let is_female = x.female.right_or_else(|x| x.parse().unwrap()) == 1;
-            let is_male = x.male.right_or_else(|x| x.parse().unwrap()) == 1;
+            let is_female = x.female.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
+            let is_male = x.male.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
 
             let kind = if is_female {
                 model::TagKind::Female
@@ -243,9 +242,10 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
 
     let gallery: model::Gallery = serde_json::from_str::<sealed::Gallery>(x)
         .map_err(|err| Error::DeserializeGallery(txt, err))?
+        .tap(|x| tracing::debug!("{x:?}"))
         .try_into()?;
 
-    tracing::debug!("{gallery:#?}");
+    tracing::debug!("{gallery:?}");
     tracing::debug!("page = {}", gallery.files.len());
 
     Ok(gallery)
