@@ -13,13 +13,17 @@ mod sealed {
 
     type Flag = Either<String, u8>;
 
+    fn default_flag() -> Flag {
+        Either::Right(0)
+    }
+
     #[derive(Debug, Deserialize)]
     pub struct File {
-        #[serde(with = "either::serde_untagged")]
+        #[serde(with = "either::serde_untagged", default = "default_flag")]
         pub hasavif: Flag,
-        #[serde(with = "either::serde_untagged")]
+        #[serde(with = "either::serde_untagged", default = "default_flag")]
         pub haswebp: Flag,
-        #[serde(with = "either::serde_untagged")]
+        #[serde(with = "either::serde_untagged", default = "default_flag")]
         pub hasjxl: Flag,
         pub height: usize,
         pub width: usize,
@@ -33,16 +37,12 @@ mod sealed {
         pub url: String,
     }
 
-    fn default_flag() -> Option<Flag> {
-        Some(Either::Right(0))
-    }
-
     #[derive(Debug, Deserialize)]
     pub struct Tag {
-        #[serde(with = "either::serde_untagged_optional", default = "default_flag")]
-        pub female: Option<Flag>,
-        #[serde(with = "either::serde_untagged_optional", default = "default_flag")]
-        pub male: Option<Flag>,
+        #[serde(with = "either::serde_untagged", default = "default_flag")]
+        pub female: Flag,
+        #[serde(with = "either::serde_untagged", default = "default_flag")]
+        pub male: Flag,
         pub tag: String,
         pub url: String,
     }
@@ -154,16 +154,10 @@ mod sealed {
 
     impl From<Tag> for model::Tag {
         fn from(x: Tag) -> Self {
-            let is_female = x
-                .female
-                .unwrap_or(Either::Right(0))
-                .right_or_else(|x| x.parse().unwrap_or(0))
-                == 1;
-            let is_male = x
-                .male
-                .unwrap_or(Either::Right(0))
-                .right_or_else(|x| x.parse().unwrap_or(0))
-                == 1;
+            // why use .unwrap()?
+            // breaking change, if this value is not 0 and 1
+            let is_female = x.female.right_or_else(|x| x.parse().unwrap()) == 1;
+            let is_male = x.male.right_or_else(|x| x.parse().unwrap()) == 1;
 
             let kind = if is_female {
                 model::TagKind::Female
@@ -277,7 +271,7 @@ mod tests {
         // kind=imageset : 2714262
 
         // for id in ids {
-        match parse(2714262).await {
+        match parse(1854227).await {
             Ok(gallery) => {
                 galleries.push(gallery);
             }
