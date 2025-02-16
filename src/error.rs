@@ -19,4 +19,7 @@ pub enum Error {
 
     #[error("Gallery: {0}")]
     Gallery(#[from] crate::gallery::Error),
+
+    #[error("GG: {0}")]
+    GG(#[from] crate::gg::Error),
 }

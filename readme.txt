@@ -1,1 +1,1 @@
-install deno v2
+
