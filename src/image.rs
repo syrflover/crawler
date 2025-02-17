@@ -1,7 +1,4 @@
-use std::{io, process::ExitStatus};
-
 use bytes::Bytes;
-use either::Either;
 use reqwest::Method;
 
 use crate::{
@@ -23,12 +20,6 @@ pub enum Error {
 
     #[error("deserialize gg_json: {0}")]
     DeserializeGgJson(serde_json::Error),
-
-    #[error("ltn: status = {0}; stdout = {1:?}; stderr = {2:?}")]
-    Ltn(ExitStatus, Either<String, Vec<u8>>, Either<String, Vec<u8>>),
-
-    #[error("command: {0}")]
-    Command(io::Error),
 }
 
 #[derive(Debug, Clone, Copy)]
