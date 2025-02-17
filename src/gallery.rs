@@ -220,8 +220,13 @@ pub enum Error {
          {1}"
     )]
     DeserializeGallery(String, serde_json::Error),
+
     #[error("parse datetime: {0}: {1}")]
     ParseDateTime(String, chrono::ParseError),
+
+    #[error("not found gallery")]
+    NotFound,
+
     #[error("{0}: {1}")]
     Status(StatusCode, String),
 }
@@ -235,6 +240,10 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
     let txt = resp.text().await?;
 
     if !status_code.is_success() {
+        if status_code == StatusCode::NOT_FOUND {
+            return Err(Error::NotFound.into());
+        }
+
         return Err(Error::Status(status_code, txt).into());
     }
 
@@ -271,7 +280,7 @@ mod tests {
         // kind=imageset : 2714262
 
         // for id in ids {
-        match parse(1854227).await {
+        match parse(3014301).await {
             Ok(gallery) => {
                 galleries.push(gallery);
             }
@@ -285,6 +294,7 @@ mod tests {
         let g = &galleries[0];
 
         // tracing::debug!("{g:#?}");
+        tracing::debug!("id={}", g.id);
         tracing::debug!("kind={}", g.kind);
     }
 }
