@@ -197,7 +197,7 @@ mod sealed {
                     .enumerate()
                     .map(|(i, file)| (i + 1, file.into()))
                     .collect(),
-                language: g.language.unwrap_or("N/A".to_owned()),
+                language: g.language.unwrap_or_default(),
                 tags: artists
                     .chain(groups)
                     .chain(series)

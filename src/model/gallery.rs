@@ -10,7 +10,7 @@ pub struct Gallery {
     pub kind: String,
     /// (page, File)
     pub files: Vec<(usize, File)>,
-    /// Some(lang) => lang, None => N/A
+    /// Some(lang) => lang, None => ""
     pub language: String,
     pub tags: Vec<Tag>,
     pub date: DateTime<Utc>,
