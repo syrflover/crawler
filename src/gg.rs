@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use regex::Regex;
 use reqwest::Method;
 
-use crate::network::{self, http::request};
+use crate::network::{
+    self,
+    http::{BASE_DOMAIN, request},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,7 +22,7 @@ pub struct GG {
 
 impl GG {
     pub async fn from_hitomi() -> crate::Result<Self> {
-        let resp = request(Method::GET, "https://ltn.hitomi.la/gg.js").await?;
+        let resp = request(Method::GET, &format!("https://ltn.{}/gg.js", BASE_DOMAIN)).await?;
         let status = resp.status();
 
         if status.is_success() {

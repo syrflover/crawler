@@ -4,13 +4,16 @@ use reqwest::Method;
 use crate::{
     gg::GG,
     model::File,
-    network::{self, http::request},
+    network::{
+        self,
+        http::{BASE_DOMAIN, request},
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("hasn't image ext: {0:?}")]
-    HasNotImage(Option<ImageExt>),
+    HasNotImage(ImageExt),
 
     #[error("can't parsed u32 from hash: hash = {0}; hex = {1}")]
     ParseU32FromHash(String, String),
@@ -30,30 +33,40 @@ pub enum ImageKind {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImageExt {
-    Jxl,
+    // Jxl,
     Avif,
     Webp,
 }
 
-pub struct Image {
-    pub kind: ImageKind,
-    pub url: String,
-    pub buf: Bytes,
+impl ImageExt {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ImageExt::Avif => "avif",
+            ImageExt::Webp => "webp",
+        }
+    }
 }
 
-impl Image {
-    pub fn ext(&self) -> Option<&str> {
-        self.url.split('.').last()
+impl Default for ImageExt {
+    fn default() -> Self {
+        Self::Avif
     }
+}
+
+pub struct Image {
+    pub kind: ImageKind,
+    pub ext: ImageExt,
+    pub url: String,
+    pub buf: Bytes,
 }
 
 pub async fn download(
     file: &File,
     kind: ImageKind,
-    ext: impl Into<Option<ImageExt>>,
+    ext: ImageExt,
     gg: &GG,
 ) -> crate::Result<Image> {
-    let image_url = parse_url(file, kind, ext.into(), gg)?;
+    let image_url = parse_url(file, kind, ext, gg)?;
 
     let resp = request(Method::GET, &image_url).await?;
 
@@ -64,6 +77,7 @@ pub async fn download(
 
         Ok(Image {
             kind,
+            ext,
             url: image_url,
             buf,
         })
@@ -74,12 +88,7 @@ pub async fn download(
 
 /// # Returns
 /// (image_url, thumbnail_url)
-fn parse_url(
-    file: &File,
-    kind: ImageKind,
-    ext: Option<ImageExt>,
-    gg: &GG,
-) -> Result<String, Error> {
+fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<String, Error> {
     // let id_string = id.to_string();
     // let mut id_chars = id_string.chars();
 
@@ -101,16 +110,23 @@ fn parse_url(
     //     'b'
     // };
 
-    let base_subdomain = 'a';
+    let base_subdomain = match ext {
+        ImageExt::Webp => 'w',
+        ImageExt::Avif => 'a',
+    };
 
     tracing::debug!("base subdomain {}", base_subdomain);
 
+    // var r = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/;
     let postfix = file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
 
     tracing::debug!("hash {}", file.hash);
     tracing::debug!("postfix {:?}", postfix);
 
     let parsed_hex_from_hash = format!("{}{}{}", postfix[2], postfix[0], postfix[1]);
+
+    tracing::debug!("parsed_hex_from_hash {}", parsed_hex_from_hash);
+
     let g = u32::from_str_radix(&parsed_hex_from_hash, 16)
         .map_err(|_| Error::ParseU32FromHash(file.hash.clone(), parsed_hex_from_hash.clone()))?;
 
@@ -118,63 +134,36 @@ fn parse_url(
 
     tracing::debug!("parsed u32 from hash {} -> {}", parsed_hex_from_hash, g);
 
-    let prefix_of_subdomain = char::from_u32(97 + m).ok_or(Error::ParsePrefixOfSubdomain(m))?;
-
-    let subdomain = format!("{}{}", prefix_of_subdomain, base_subdomain);
-
-    tracing::debug!("subdomain {}", subdomain);
-
-    // # removed at 20240121
-    // let image_url = if file.has_avif {
-    //     format!(
-    //         "https://{}.hitomi.la/avif/{}/{}/{}.avif",
-    //         subdomain, gg_json.b, x, file.hash,
-    //     )
-    // } else if file.has_webp {
-    //     format!(
-    //         "https://{}.hitomi.la/webp/{}/{}/{}.webp",
-    //         subdomain, gg_json.b, x, file.hash,
-    //     )
-    // } else {
-    //     return Err(Error::HasNotImage);
-    // };
-
-    // # removed at 20240121
-    // let thumbnail_url = if file.has_avif {
-    //     format!(
-    //         "https://{}tn.hitomi.la/avifbigtn/{}/{}{}/{}.avif",
-    //         prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
-    //     )
-    // } else if file.has_webp {
-    //     format!(
-    //         "https://{}tn.hitomi.la/webpbigtn/{}/{}{}/{}.webp",
-    //         prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
-    //     )
-    // } else {
-    //     return Err(Error::HasNotImage);
-    // };
-
     let ext = match ext {
-        None | Some(ImageExt::Avif) if file.has_avif => "avif",
-        None | Some(ImageExt::Webp) if file.has_webp => "webp",
-        None | Some(ImageExt::Jxl) if file.has_jxl => "jxl",
+        ImageExt::Avif if file.has_avif => "avif",
+        ImageExt::Webp if file.has_webp => "webp",
+        // ImageExt::Jxl if file.has_jxl => "jxl",
         _ => return Err(Error::HasNotImage(ext)),
     };
 
     let image_url = match kind {
         ImageKind::Thumbnail => {
+            let prefix_of_subdomain =
+                char::from_u32(97 + m).ok_or(Error::ParsePrefixOfSubdomain(m))?;
+
             format!(
-                "https://{}tn.hitomi.la/{ext}bigtn/{}/{}{}/{}.{ext}",
+                "https://{}tn.{BASE_DOMAIN}/{ext}bigtn/{}/{}{}/{}.{ext}",
                 prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
             )
         }
-        ImageKind::Original => format!(
-            "https://{}.hitomi.la/{ext}/{}/{}/{}.{ext}",
-            subdomain,
-            gg.b(),
-            g,
-            file.hash,
-        ),
+        ImageKind::Original => {
+            let subdomain = format!("{}{}", base_subdomain, 1 + m);
+
+            tracing::debug!("subdomain {}", subdomain);
+
+            format!(
+                "https://{}.{BASE_DOMAIN}/{}/{}/{}.{ext}",
+                subdomain,
+                gg.b(),
+                g,
+                file.hash,
+            )
+        }
     };
 
     // tracing::debug!("image_file = {:?}", file);
@@ -215,7 +204,11 @@ mod tests {
 
         let gg = GG::from_hitomi().await.unwrap();
 
-        parse_url(file, ImageKind::Original, None, &gg).unwrap();
+        parse_url(file, ImageKind::Thumbnail, ImageExt::Avif, &gg).unwrap();
+        parse_url(file, ImageKind::Thumbnail, ImageExt::Webp, &gg).unwrap();
+
+        parse_url(file, ImageKind::Original, ImageExt::Avif, &gg).unwrap();
+        parse_url(file, ImageKind::Original, ImageExt::Webp, &gg).unwrap();
     }
 
     #[tokio::test]
@@ -225,7 +218,7 @@ mod tests {
         // let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         // let id = ids[2];
-        let id = 2709834;
+        let id = 3282933;
 
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
@@ -236,11 +229,11 @@ mod tests {
 
         let gg = GG::from_hitomi().await.unwrap();
 
-        let image = download(file, ImageKind::Thumbnail, None, &gg)
+        let image = download(file, ImageKind::Thumbnail, ImageExt::Avif, &gg)
             .await
             .unwrap();
 
-        let name = format!("{}/thumbnail.{}", gallery_dir, image.ext().unwrap());
+        let name = format!("{}/thumbnail.{}", gallery_dir, image.ext.as_str());
         let mut f = std::fs::File::create(name).unwrap();
 
         f.write_all(&image.buf).unwrap();
@@ -254,7 +247,7 @@ mod tests {
         // let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
 
         // let id = ids[2];
-        let id = 2804886;
+        let id = 3282933;
 
         let gg = GG::from_hitomi().await.unwrap();
 
@@ -275,9 +268,11 @@ mod tests {
             .for_each(|(p, (_, file))| {
                 let gg = &gg;
                 async move {
-                    let image = download(file, ImageKind::Original, None, gg).await.unwrap();
+                    let image = download(file, ImageKind::Original, ImageExt::Avif, gg)
+                        .await
+                        .unwrap();
 
-                    let name = format!("{}/{p}.{}", gallery_dir, image.ext().unwrap());
+                    let name = format!("{}/{p}.{}", gallery_dir, image.ext.as_str());
                     let mut f = std::fs::File::create(name).unwrap();
 
                     f.write_all(&image.buf).unwrap();

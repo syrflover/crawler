@@ -1,9 +1,9 @@
 use reqwest::{
-    header::{self, HeaderName, HeaderValue},
     Method,
+    header::{self, HeaderName, HeaderValue},
 };
 
-use crate::network::http::request_with_headers;
+use crate::network::http::{BASE_DOMAIN, request_with_headers};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Language {
@@ -14,12 +14,12 @@ pub enum Language {
 }
 
 impl Language {
-    fn to_nozomi_url(self) -> &'static str {
+    fn to_nozomi_url(self) -> String {
         match self {
-            Language::All => "https://ltn.hitomi.la/index-all.nozomi",
-            Language::Korean => "https://ltn.hitomi.la/index-korean.nozomi",
-            Language::Japanese => "https://ltn.hitomi.la/index-japanese.nozomi",
-            Language::English => "https://ltn.hitomi.la/index-english.nozomi",
+            Language::All => format!("https://ltn.{}/index-all.nozomi", BASE_DOMAIN),
+            Language::Korean => format!("https://ltn.{}/index-korean.nozomi", BASE_DOMAIN),
+            Language::Japanese => format!("https://ltn.{}/index-japanese.nozomi", BASE_DOMAIN),
+            Language::English => format!("https://ltn.{}/index-english.nozomi", BASE_DOMAIN),
         }
     }
 }
@@ -31,7 +31,6 @@ fn range(page: usize, per_page: usize) -> (usize, usize) {
     (start_bytes, end_bytes)
 }
 
-/// tested only korean
 pub async fn parse(
     lang: impl Into<Option<Language>>,
     page: usize,
@@ -52,7 +51,7 @@ pub async fn parse(
             .unwrap(),
     );
 
-    let resp = request_with_headers(Method::GET, [range].into_iter(), url).await?;
+    let resp = request_with_headers(Method::GET, [range].into_iter(), &url).await?;
 
     let bytes = resp.bytes().await?;
 

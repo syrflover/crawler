@@ -1,9 +1,11 @@
 use std::{iter, time::Duration};
 
 use reqwest::{
-    header::{self, HeaderMap, HeaderName, HeaderValue},
     Method, Response, StatusCode,
+    header::{self, HeaderMap, HeaderName, HeaderValue},
 };
+
+pub const BASE_DOMAIN: &str = "gold-usergeneratedcontent.net";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -25,12 +27,13 @@ pub async fn request_with_headers(
         .header(header::REFERER, "https://hitomi.la")
         .headers(HeaderMap::from_iter(headers));
 
-    let is_ltn = url.starts_with("https://ltn.hitomi.la");
+    let is_ltn = url.starts_with("https://ltn.");
 
     if is_ltn {
-        request = request.timeout(Duration::from_secs(3));
+        request = request
+            // .header(header::REFERER, format!("https://{}", BASE_DOMAIN))
+            .timeout(Duration::from_secs(3));
     }
-
     let mut retry = 0;
 
     let resp = loop {

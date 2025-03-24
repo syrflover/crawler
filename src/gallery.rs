@@ -1,7 +1,10 @@
 use reqwest::{Method, StatusCode};
 use tap::Tap;
 
-use crate::{model, network::http::request};
+use crate::{
+    model,
+    network::http::{BASE_DOMAIN, request},
+};
 
 mod sealed {
     use either::Either;
@@ -232,7 +235,7 @@ pub enum Error {
 }
 
 pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
-    let url = format!("https://ltn.hitomi.la/galleries/{id}.js");
+    let url = format!("https://ltn.{}/galleries/{}.js", BASE_DOMAIN, id);
 
     let resp = request(Method::GET, &url).await?;
     let status_code = resp.status();
