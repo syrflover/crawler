@@ -22,7 +22,9 @@ pub async fn request_with_headers(
     headers: impl Iterator<Item = (HeaderName, HeaderValue)>,
     url: &str,
 ) -> reqwest::Result<Response> {
-    let mut request = reqwest::Client::new()
+    let client = reqwest::Client::builder().zstd(true).build().unwrap();
+
+    let mut request = client
         .request(method, url)
         .header(header::REFERER, "https://hitomi.la")
         .headers(HeaderMap::from_iter(headers));
