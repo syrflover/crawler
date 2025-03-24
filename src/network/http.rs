@@ -1,4 +1,4 @@
-use std::{iter, time::Duration};
+use std::time::Duration;
 
 use reqwest::{
     Method, Response, StatusCode,
@@ -14,7 +14,7 @@ pub enum Error {
 }
 
 pub async fn request(method: Method, url: &str) -> reqwest::Result<Response> {
-    request_with_headers(method, iter::empty(), url).await
+    request_with_headers(method, std::iter::empty(), url).await
 }
 
 pub async fn request_with_headers(
@@ -30,10 +30,9 @@ pub async fn request_with_headers(
     let is_ltn = url.starts_with("https://ltn.");
 
     if is_ltn {
-        request = request
-            // .header(header::REFERER, format!("https://{}", BASE_DOMAIN))
-            .timeout(Duration::from_secs(3));
+        request = request.timeout(Duration::from_secs(3));
     }
+
     let mut retry = 0;
 
     let resp = loop {
