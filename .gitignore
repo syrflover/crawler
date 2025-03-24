@@ -94,3 +94,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/macos,rust,linux,windows
 
 sample/
+hitomi/
