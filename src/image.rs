@@ -33,7 +33,6 @@ pub enum ImageKind {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImageExt {
-    // Jxl,
     Avif,
     Webp,
 }

@@ -27,8 +27,6 @@ mod sealed {
         pub hasavif: Flag,
         #[serde(with = "either::serde_untagged", default = "default_flag")]
         pub haswebp: Flag,
-        #[serde(with = "either::serde_untagged", default = "default_flag")]
-        pub hasjxl: Flag,
         pub height: usize,
         pub width: usize,
         pub name: String,
@@ -106,12 +104,10 @@ mod sealed {
         fn from(file: File) -> Self {
             let has_webp = file.haswebp.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
             let has_avif = file.hasavif.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
-            let has_jxl = file.hasjxl.right_or_else(|x| x.parse().unwrap_or(0)) == 1_u8;
 
             Self {
                 has_webp,
                 has_avif,
-                has_jxl,
                 width: file.width,
                 height: file.height,
                 hash: file.hash,
