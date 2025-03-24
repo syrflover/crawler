@@ -24,58 +24,64 @@ impl Language {
     }
 }
 
+#[inline]
 fn range(page: usize, per_page: usize) -> (usize, usize) {
-    let start_bytes = (page - 1) * per_page * 4;
-    let end_bytes = start_bytes + per_page * 4 - 1;
+    let start_byte = (page - 1) * per_page * 4;
+    let end_byte = start_byte + per_page * 4 - 1;
 
-    (start_bytes, end_bytes)
+    (start_byte, end_byte)
 }
 
-pub async fn parse(
-    lang: impl Into<Option<Language>>,
-    page: usize,
-    per_page: usize,
-) -> crate::Result<Vec<u32>> {
-    let lang = (lang.into() as Option<_>).unwrap_or(Language::All);
-    let url = lang.to_nozomi_url();
+pub async fn parse(lang: Language, page: usize, per_page: usize) -> crate::Result<Vec<u32>> {
+    let (start_byte, end_byte) = range(page, per_page);
 
-    let (start_bytes, end_bytes) = range(page, per_page);
-
-    tracing::debug!("start_bytes = {}", start_bytes);
-    tracing::debug!("end_bytes = {}", end_bytes);
+    tracing::trace!("start_byte={}", start_byte);
+    tracing::trace!("end_byte={}", end_byte);
 
     let range: (HeaderName, HeaderValue) = (
         header::RANGE,
-        format!("bytes={}-{}", start_bytes, end_bytes)
+        format!("bytes={}-{}", start_byte, end_byte)
             .try_into()
             .unwrap(),
     );
 
-    let resp = request_with_headers(Method::GET, [range].into_iter(), &url).await?;
+    let resp =
+        request_with_headers(Method::GET, std::iter::once(range), &lang.to_nozomi_url()).await?;
 
     let bytes = resp.bytes().await?;
 
-    let mut res = vec![];
+    tracing::trace!("bytes={:?}", bytes);
 
-    for i in (0..bytes.len()).step_by(4) {
-        let mut temp = 0;
+    // check bytes length
+    debug_assert_eq!(per_page, bytes.len() / 4);
 
+    let mut res = Vec::with_capacity(per_page);
+
+    for step in (0..bytes.len()).step_by(4) {
+        tracing::trace!("step={}", step);
+
+        let mut acc = 0;
+
+        // similar to u32::from_be_bytes
         for j in 0..3 {
-            // https://github.com/Project-Madome/Madome-Synchronizer/issues/1
-            if let Some(a) = bytes.get(i + (3 - j)) {
-                let a: u32 = (*a).into();
-                temp += a << (j << 3);
+            if let Some(byte) = bytes.get(step + (3 - j)) {
+                let byte: u32 = (*byte).into();
+                tracing::trace!("byte={}", byte);
+
+                acc += byte << (j << 3);
+                tracing::trace!("acc={}", acc);
             } else {
+                // TODO: throw error
                 break;
             }
         }
 
         // tracing::debug!("id = {}", temp);
 
-        res.push(temp);
+        res.push(acc);
     }
 
-    res.sort_by(|a, b| b.cmp(a));
+    res.sort_unstable_by(|a, b| b.cmp(a));
 
     tracing::debug!("ids = {res:?}");
 
