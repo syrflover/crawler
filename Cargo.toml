@@ -1,15 +1,15 @@
 [package]
 name = "hitomi_la"
 version = "0.1.0"
-description = "The hitomi.la API wrapper for Rust"
-edition = "2024"
+description = "A hitomi.la API wrapper for Rust"
+edition = "2021"
 authors = ["syrlee <user@syrflover.co>"]
 homepage = "https://github.com/syrflover/hitomi.rs"
 repository = "https://github.com/syrflover/hitomi.rs"
 license = "MIT"
 keywords = ["hitomi"]
 categories = ["asynchronous", "api-bindings"]
-rust-version = "1.85"
+rust-version = "1.81"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
