@@ -1,9 +1,17 @@
+use std::num::NonZeroUsize;
+
 use reqwest::{
     Method,
     header::{self, HeaderName, HeaderValue},
 };
 
 use crate::network::http::{BASE_DOMAIN, request_with_headers};
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("required page must be non-zero")]
+    InvalidPage,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Language {
@@ -32,8 +40,19 @@ fn range(page: usize, per_page: usize) -> (usize, usize) {
     (start_byte, end_byte)
 }
 
-pub async fn parse(lang: Language, page: usize, per_page: usize) -> crate::Result<Vec<u32>> {
-    let (start_byte, end_byte) = range(page, per_page);
+/// Fetches the nozomi file from hitomi server and Returns ID list sorted in descending order.
+///
+/// ## Errors
+/// - if page == zero
+pub async fn parse(
+    lang: Language,
+    page: impl TryInto<NonZeroUsize>,
+    per_page: usize,
+) -> crate::Result<Vec<u32>> {
+    let (start_byte, end_byte) = range(
+        page.try_into().map_err(|_| Error::InvalidPage)?.into(),
+        per_page,
+    );
 
     tracing::trace!("start_byte={}", start_byte);
     tracing::trace!("end_byte={}", end_byte);
@@ -76,14 +95,12 @@ pub async fn parse(lang: Language, page: usize, per_page: usize) -> crate::Resul
             }
         }
 
-        // tracing::debug!("id = {}", temp);
-
         res.push(acc);
     }
 
     res.sort_unstable_by(|a, b| b.cmp(a));
 
-    tracing::debug!("ids = {res:?}");
+    tracing::debug!("ids={res:?}");
 
     Ok(res)
 }
@@ -98,6 +115,8 @@ mod tests {
     async fn parse_nozomi() {
         tracing();
 
-        let _ids = parse(Language::Korean, 1, 25).await.unwrap();
+        let ids = parse(Language::Korean, 1, 25).await.unwrap();
+
+        assert_eq!(ids.len(), 25);
     }
 }

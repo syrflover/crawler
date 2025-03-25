@@ -9,11 +9,14 @@ pub const BASE_DOMAIN: &str = "gold-usergeneratedcontent.net";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Reqwest: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
     #[error("Status: {0}")]
     Status(StatusCode),
 }
 
-pub async fn request(method: Method, url: &str) -> reqwest::Result<Response> {
+pub async fn request(method: Method, url: &str) -> Result<Response, Error> {
     request_with_headers(method, std::iter::empty(), url).await
 }
 
@@ -21,7 +24,7 @@ pub async fn request_with_headers(
     method: Method,
     headers: impl Iterator<Item = (HeaderName, HeaderValue)>,
     url: &str,
-) -> reqwest::Result<Response> {
+) -> Result<Response, Error> {
     let client = reqwest::Client::builder().zstd(true).build().unwrap();
 
     let mut request = client
@@ -47,7 +50,7 @@ pub async fn request_with_headers(
                     retry += 1;
                     continue;
                 } else {
-                    return Err(err);
+                    return Err(err.into());
                 }
             }
         };

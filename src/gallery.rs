@@ -3,7 +3,10 @@ use tap::Tap;
 
 use crate::{
     model,
-    network::http::{BASE_DOMAIN, request},
+    network::{
+        self,
+        http::{BASE_DOMAIN, request},
+    },
 };
 
 mod sealed {
@@ -222,15 +225,14 @@ pub enum Error {
 
     #[error("parse datetime: {0}: {1}")]
     ParseDateTime(String, chrono::ParseError),
-
-    #[error("not found gallery")]
-    NotFound,
-
-    #[error("{0}: {1}")]
-    Status(StatusCode, String),
 }
 
-pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
+/// Fetches gallery js from hitomi server and Returns gallery information
+///
+/// ## Return
+///
+/// Returns `None` if status code is NOT_FOUND
+pub async fn parse(id: u32) -> crate::Result<Option<model::Gallery>> {
     let url = format!("https://ltn.{}/galleries/{}.js", BASE_DOMAIN, id);
 
     let resp = request(Method::GET, &url).await?;
@@ -240,10 +242,10 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
 
     if !status_code.is_success() {
         if status_code == StatusCode::NOT_FOUND {
-            return Err(Error::NotFound.into());
+            return Ok(None);
         }
 
-        return Err(Error::Status(status_code, txt).into());
+        return Err(network::http::Error::Status(status_code).into());
     }
 
     let (_, x) = txt.split_once('=').unwrap_or_default();
@@ -254,9 +256,9 @@ pub async fn parse(id: u32) -> crate::Result<model::Gallery> {
         .try_into()?;
 
     tracing::debug!("{gallery:?}");
-    tracing::debug!("page = {}", gallery.files.len());
+    tracing::debug!("page={}", gallery.files.len());
 
-    Ok(gallery)
+    Ok(Some(gallery))
 }
 
 #[cfg(test)]
@@ -281,7 +283,7 @@ mod tests {
         // for id in ids {
         match parse(3014301).await {
             Ok(gallery) => {
-                galleries.push(gallery);
+                galleries.push(gallery.unwrap());
             }
             Err(err) => {
                 tracing::error!("{err}");
@@ -292,7 +294,7 @@ mod tests {
 
         let g = &galleries[0];
 
-        // tracing::debug!("{g:#?}");
+        tracing::debug!("{g:#?}");
         tracing::debug!("id={}", g.id);
         tracing::debug!("kind={}", g.kind);
     }

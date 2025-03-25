@@ -7,12 +7,11 @@ pub enum Error {
     #[error("Http: {0}")]
     Http(#[from] network::http::Error),
 
-    // TODO: move to network::http::Error
-    #[error("Reqwest: {0}")]
-    Reqwest(#[from] reqwest::Error),
-
     #[error("Io: {0}")]
     Io(#[from] io::Error),
+
+    #[error("Nozomi: {0}")]
+    Nozomi(#[from] crate::nozomi::Error),
 
     #[error("Image: {0}")]
     Image(#[from] crate::image::Error),
@@ -22,4 +21,10 @@ pub enum Error {
 
     #[error("GG: {0}")]
     GG(#[from] crate::gg::Error),
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Http(network::http::Error::from(err))
+    }
 }

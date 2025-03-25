@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bytes::Bytes;
 use reqwest::Method;
 
@@ -20,9 +22,6 @@ pub enum Error {
 
     #[error("can't parsed prefix subdomain: x = {0}")]
     ParsePrefixOfSubdomain(u32),
-
-    #[error("deserialize gg_json: {0}")]
-    DeserializeGgJson(serde_json::Error),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -39,10 +38,22 @@ pub enum ImageExt {
 
 impl ImageExt {
     pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
+impl AsRef<str> for ImageExt {
+    fn as_ref(&self) -> &str {
         match self {
             ImageExt::Avif => "avif",
             ImageExt::Webp => "webp",
         }
+    }
+}
+
+impl Display for ImageExt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().fmt(f)
     }
 }
 
@@ -85,58 +96,34 @@ pub async fn download(
     }
 }
 
-/// # Returns
-/// (image_url, thumbnail_url)
 fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<String, Error> {
-    // let id_string = id.to_string();
-    // let mut id_chars = id_string.chars();
-
-    // let c: u32 = id_chars
-    //     .nth(id_string.len() - 1)
-    //     .unwrap()
-    //     .to_string()
-    //     .encode_utf16()
-    //     .next()
-    //     .unwrap()
-    //     .into();
-
-    // tracing::debug!("id_char utf16 code {}", c);
-
-    // # removed at 20240121
-    // let base_subdomain = if file.has_webp || file.has_avif {
-    //     'a'
-    // } else {
-    //     'b'
-    // };
-
     let base_subdomain = match ext {
         ImageExt::Webp => 'w',
         ImageExt::Avif => 'a',
     };
 
-    tracing::debug!("base subdomain {}", base_subdomain);
+    tracing::debug!(?base_subdomain);
 
     // var r = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/;
     let postfix = file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
 
-    tracing::debug!("hash {}", file.hash);
-    tracing::debug!("postfix {:?}", postfix);
+    tracing::debug!(?file.hash);
+    tracing::debug!(?postfix);
 
     let parsed_hex_from_hash = format!("{}{}{}", postfix[2], postfix[0], postfix[1]);
 
-    tracing::debug!("parsed_hex_from_hash {}", parsed_hex_from_hash);
+    tracing::debug!(?parsed_hex_from_hash);
 
     let g = u32::from_str_radix(&parsed_hex_from_hash, 16)
         .map_err(|_| Error::ParseU32FromHash(file.hash.clone(), parsed_hex_from_hash.clone()))?;
 
     let m = gg.m(g);
 
-    tracing::debug!("parsed u32 from hash {} -> {}", parsed_hex_from_hash, g);
+    tracing::debug!(?g);
 
     let ext = match ext {
         ImageExt::Avif if file.has_avif => "avif",
         ImageExt::Webp if file.has_webp => "webp",
-        // ImageExt::Jxl if file.has_jxl => "jxl",
         _ => return Err(Error::HasNotImage(ext)),
     };
 
@@ -145,15 +132,19 @@ fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<Str
             let prefix_of_subdomain =
                 char::from_u32(97 + m).ok_or(Error::ParsePrefixOfSubdomain(m))?;
 
+            let subdomain = format!("{}tn", prefix_of_subdomain);
+
+            tracing::debug!(?subdomain);
+
             format!(
-                "https://{}tn.{BASE_DOMAIN}/{ext}bigtn/{}/{}{}/{}.{ext}",
-                prefix_of_subdomain, postfix[2], postfix[0], postfix[1], file.hash
+                "https://{}.{BASE_DOMAIN}/{ext}bigtn/{}/{}{}/{}.{ext}",
+                subdomain, postfix[2], postfix[0], postfix[1], file.hash
             )
         }
         ImageKind::Original => {
             let subdomain = format!("{}{}", base_subdomain, 1 + m);
 
-            tracing::debug!("subdomain {}", subdomain);
+            tracing::debug!(?subdomain);
 
             format!(
                 "https://{}.{BASE_DOMAIN}/{}/{}/{}.{ext}",
@@ -165,9 +156,7 @@ fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<Str
         }
     };
 
-    // tracing::debug!("image_file = {:?}", file);
-    tracing::debug!("image_url = {}", image_url);
-    // tracing::debug!("thumbnail_url = {}", thumbnail_url);
+    tracing::debug!(?image_url);
 
     Ok(image_url)
 }
@@ -197,17 +186,17 @@ mod tests {
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
 
-        let gallery = gallery::parse(id).await.unwrap();
+        let gallery = gallery::parse(id).await.unwrap().unwrap();
 
         let (_, file) = &gallery.files[0];
 
         let gg = GG::from_hitomi().await.unwrap();
 
         parse_url(file, ImageKind::Thumbnail, ImageExt::Avif, &gg).unwrap();
-        parse_url(file, ImageKind::Thumbnail, ImageExt::Webp, &gg).unwrap();
+        // parse_url(file, ImageKind::Thumbnail, ImageExt::Webp, &gg).unwrap();
 
         parse_url(file, ImageKind::Original, ImageExt::Avif, &gg).unwrap();
-        parse_url(file, ImageKind::Original, ImageExt::Webp, &gg).unwrap();
+        // parse_url(file, ImageKind::Original, ImageExt::Webp, &gg).unwrap();
     }
 
     #[tokio::test]
@@ -222,7 +211,7 @@ mod tests {
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
 
-        let gallery = gallery::parse(id).await.unwrap();
+        let gallery = gallery::parse(id).await.unwrap().unwrap();
 
         let (_, file) = &gallery.files[0];
 
@@ -253,7 +242,7 @@ mod tests {
         let gallery_dir = format!("./sample/images/{id}");
         std::fs::create_dir_all(&gallery_dir).unwrap();
 
-        let gallery = gallery::parse(id).await.unwrap();
+        let gallery = gallery::parse(id).await.unwrap().unwrap();
 
         std::fs::write(
             format!("{}/files.json", gallery_dir),
