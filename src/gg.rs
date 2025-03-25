@@ -38,11 +38,11 @@ impl GG {
         parse_gg(s).ok_or(Error::Parse.into())
     }
 
-    pub fn m(&self, key: u32) -> u32 {
-        *self.m.get(&key).unwrap_or(&self.default)
+    pub(crate) fn m(&self, key: u32) -> u32 {
+        self.m.get(&key).copied().unwrap_or(self.default)
     }
 
-    pub fn b(&self) -> &str {
+    pub(crate) fn b(&self) -> &str {
         &self.b
     }
 }
@@ -79,9 +79,9 @@ fn parse_gg(s: &str) -> Option<GG> {
         }
     }
 
-    for key in keys {
-        m.insert(key, default_value);
-    }
+    // for key in keys {
+    //     m.insert(key, default_value);
+    // }
 
     //
 
