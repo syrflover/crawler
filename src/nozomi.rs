@@ -1,11 +1,11 @@
 use std::num::NonZeroUsize;
 
 use reqwest::{
-    Method,
     header::{self, HeaderName, HeaderValue},
+    Method,
 };
 
-use crate::network::http::{BASE_DOMAIN, request_with_headers};
+use crate::network::http::{request_with_headers, BASE_DOMAIN};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -117,6 +117,10 @@ mod tests {
 
         let ids = parse(Language::Korean, 1, 25).await.unwrap();
 
+        // length
         assert_eq!(ids.len(), 25);
+
+        // descending
+        assert!(ids.iter().rev().is_sorted());
     }
 }
