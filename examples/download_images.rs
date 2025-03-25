@@ -10,13 +10,8 @@ use hitomi_la::{
 };
 use tokio::fs;
 
-#[tokio::test]
-#[ignore]
-async fn test() {
-    run().await.unwrap()
-}
-
-async fn run() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let base_dir = PathBuf::from("./galleries");
 
     let ids = nozomi::parse(Language::Korean, 1, 3).await?;
