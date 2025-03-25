@@ -1,3 +1,7 @@
+//! # hitomi.rs
+//!
+//! A hitomi.la API wrapper for Rust programming language.
+
 pub mod error;
 pub mod gallery;
 pub mod gg;
