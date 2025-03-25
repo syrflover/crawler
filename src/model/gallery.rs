@@ -9,6 +9,8 @@ pub struct Gallery {
     pub title: String,
     pub kind: String,
     /// (page, File)
+    ///
+    /// page starts from 1
     pub files: Vec<(usize, File)>,
     pub language: Option<String>,
     pub tags: Vec<Tag>,
