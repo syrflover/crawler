@@ -10,6 +10,7 @@ license = "MIT"
 keywords = ["hitomi"]
 categories = ["asynchronous", "api-bindings"]
 rust-version = "1.81"
+readme = "readme.md"
 
 exclude = ["examples/"]
 
