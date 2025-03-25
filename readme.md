@@ -1,5 +1,7 @@
 # hitomi.rs
 
+![Crates.io Version](https://img.shields.io/crates/v/hitomi_la)
+
 A hitomi.la API wrapper for Rust programming language.
 
 ## Examples
