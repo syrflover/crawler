@@ -181,7 +181,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn parse_image_url() {
+    async fn download_image() {
         tracing();
 
         let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
@@ -197,39 +197,39 @@ mod tests {
 
         let gg = GG::from_hitomi().await.unwrap();
 
-        parse_url(file, ImageKind::Thumbnail, ImageExt::Avif, &gg).unwrap();
-        // parse_url(file, ImageKind::Thumbnail, ImageExt::Webp, &gg).unwrap();
+        // avif thumbnail
+        let avif_thumbnail = {
+            let gg = &gg;
+            let gallery_dir = &*gallery_dir;
+            async move {
+                let image = download(file, ImageKind::Thumbnail, ImageExt::Avif, gg)
+                    .await
+                    .unwrap();
 
-        parse_url(file, ImageKind::Original, ImageExt::Avif, &gg).unwrap();
-        // parse_url(file, ImageKind::Original, ImageExt::Webp, &gg).unwrap();
-    }
+                let name = format!("{}/thumbnail.{}", gallery_dir, image.ext.as_str());
+                let mut f = std::fs::File::create(name).unwrap();
 
-    #[tokio::test]
-    async fn download_thumbnail() {
-        tracing();
+                f.write_all(&image.buf).unwrap();
+            }
+        };
 
-        // let ids = nozomi::parse(Language::Korean, 1, 25).await.unwrap();
+        // avif original
+        let avif_original = {
+            let gg = &gg;
+            let gallery_dir = &*gallery_dir;
+            async move {
+                let image = download(file, ImageKind::Original, ImageExt::Avif, gg)
+                    .await
+                    .unwrap();
 
-        // let id = ids[2];
-        let id = 3282933;
+                let name = format!("{}/original.{}", gallery_dir, image.ext.as_str());
+                let mut f = std::fs::File::create(name).unwrap();
 
-        let gallery_dir = format!("./sample/images/{id}");
-        std::fs::create_dir_all(&gallery_dir).unwrap();
+                f.write_all(&image.buf).unwrap();
+            }
+        };
 
-        let gallery = gallery::parse(id).await.unwrap().unwrap();
-
-        let (_, file) = &gallery.files[0];
-
-        let gg = GG::from_hitomi().await.unwrap();
-
-        let image = download(file, ImageKind::Thumbnail, ImageExt::Avif, &gg)
-            .await
-            .unwrap();
-
-        let name = format!("{}/thumbnail.{}", gallery_dir, image.ext.as_str());
-        let mut f = std::fs::File::create(name).unwrap();
-
-        f.write_all(&image.buf).unwrap();
+        tokio::join!(avif_thumbnail, avif_original);
     }
 
     #[tokio::test]
