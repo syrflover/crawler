@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use bytes::Bytes;
+use itertools::Itertools;
 use reqwest::Method;
 
 use crate::{
@@ -8,7 +9,7 @@ use crate::{
     model::File,
     network::{
         self,
-        http::{BASE_DOMAIN, request},
+        http::{request, BASE_DOMAIN},
     },
 };
 
@@ -97,6 +98,13 @@ pub async fn download(
 }
 
 fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<String, Error> {
+    // validate image ext exists on hitomi
+    match ext {
+        ImageExt::Avif if file.has_avif => {}
+        ImageExt::Webp if file.has_webp => {}
+        _ => return Err(Error::HasNotImage(ext)),
+    }
+
     let base_subdomain = match ext {
         ImageExt::Webp => 'w',
         ImageExt::Avif => 'a',
@@ -105,7 +113,10 @@ fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<Str
     tracing::debug!(?base_subdomain);
 
     // var r = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/;
-    let postfix = file.hash[file.hash.len() - 3..].chars().collect::<Vec<_>>();
+    let postfix = file.hash[file.hash.len() - 3..]
+        .chars()
+        .collect_array::<3>()
+        .unwrap();
 
     tracing::debug!(?file.hash);
     tracing::debug!(?postfix);
@@ -120,12 +131,6 @@ fn parse_url(file: &File, kind: ImageKind, ext: ImageExt, gg: &GG) -> Result<Str
     let m = gg.m(g);
 
     tracing::debug!(?g);
-
-    let ext = match ext {
-        ImageExt::Avif if file.has_avif => "avif",
-        ImageExt::Webp if file.has_webp => "webp",
-        _ => return Err(Error::HasNotImage(ext)),
-    };
 
     let image_url = match kind {
         ImageKind::Thumbnail => {
