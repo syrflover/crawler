@@ -5,7 +5,7 @@ use reqwest::Method;
 
 use crate::network::{
     self,
-    http::{BASE_DOMAIN, request},
+    http::{request, BASE_DOMAIN},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -79,10 +79,6 @@ fn parse_gg(s: &str) -> Option<GG> {
         }
     }
 
-    // for key in keys {
-    //     m.insert(key, default_value);
-    // }
-
     //
 
     let cond_regex = Regex::new(
@@ -110,4 +106,16 @@ fn parse_gg(s: &str) -> Option<GG> {
         b: b.strip_suffix('/').unwrap_or(b).to_owned(),
         default: default_value,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_gg() {
+        let gg = GG::from_hitomi().await;
+
+        assert!(gg.is_ok());
+    }
 }
